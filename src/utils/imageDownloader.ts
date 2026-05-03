@@ -25,11 +25,15 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
     : null;
 }
 
-// 用于排序颜色键的函数 - 从page.tsx复制
-function sortColorKeys(a: string, b: string): number {
+// 用于排序颜色键的函数 - 支持按色号字母数字顺序排序
+function sortColorKeys(a: string, b: string, colorSystem?: ColorSystem): number {
+  // 如果提供了色号系统，将hex键转换为显示色号后再排序
+  const keyA = colorSystem ? getDisplayColorKey(a, colorSystem) : a;
+  const keyB = colorSystem ? getDisplayColorKey(b, colorSystem) : b;
+
   const regex = /^([A-Z]+)(\d+)$/;
-  const matchA = a.match(regex);
-  const matchB = b.match(regex);
+  const matchA = keyA.match(regex);
+  const matchB = keyB.match(regex);
 
   if (matchA && matchB) {
     const prefixA = matchA[1];
@@ -43,7 +47,7 @@ function sortColorKeys(a: string, b: string): number {
     return numA - numB; // Then sort by number (1, 2, 10...)
   }
   // Fallback for keys that don't match the standard pattern (e.g., T1, ZG1)
-  return a.localeCompare(b);
+  return keyA.localeCompare(keyB);
 }
 
 // 导出CSV hex数据的函数
@@ -652,7 +656,9 @@ export async function downloadImage({
 
     // 绘制统计信息
     if (includeStats && colorCounts) {
-      const colorKeys = Object.keys(colorCounts).sort(sortColorKeys);
+      const colorKeys = Object.keys(colorCounts).sort((a, b) =>
+        sortColorKeys(a, b, options.sortByKey ? selectedColorSystem : undefined)
+      );
       
       // 增加额外的间距，防止标题文字侵入画布
       const statsTopMargin = 24; // 增加间距，防止文字侵入画布

@@ -7,4 +7,5 @@ export type GridDownloadOptions = {
   gridLineColor: string;
   includeStats: boolean;
   exportCsv: boolean; // 新增：是否同时导出CSV hex数据
+  sortByKey: boolean; // 新增：是否按色号字母数字顺序排序
 };

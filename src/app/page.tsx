@@ -23,11 +23,12 @@ import { downloadImage, importCsvData } from '../utils/imageDownloader';
 
 import { 
   colorSystemOptions, 
-  convertPaletteToColorSystem, 
+  convertPaletteToColorSystem,
   getColorKeyByHex,
+  getDisplayColorKey,
   getMardToHexMapping,
   sortColorsByHue,
-  ColorSystem 
+  ColorSystem
 } from '../utils/colorSystemUtils';
 
 // 添加自定义动画样式
@@ -43,10 +44,14 @@ const floatAnimation = `
 `;
 
 // Helper function for sorting color keys - 保留原有实现，因为未在utils中导出
-function sortColorKeys(a: string, b: string): number {
+function sortColorKeys(a: string, b: string, colorSystem?: ColorSystem): number {
+  // 如果提供了色号系统，将hex键转换为显示色号后再排序
+  const keyA = colorSystem ? getDisplayColorKey(a, colorSystem) : a;
+  const keyB = colorSystem ? getDisplayColorKey(b, colorSystem) : b;
+
   const regex = /^([A-Z]+)(\d+)$/;
-  const matchA = a.match(regex);
-  const matchB = b.match(regex);
+  const matchA = keyA.match(regex);
+  const matchB = keyB.match(regex);
 
   if (matchA && matchB) {
     const prefixA = matchA[1];
@@ -60,7 +65,7 @@ function sortColorKeys(a: string, b: string): number {
     return numA - numB; // Then sort by number (1, 2, 10...)
   }
   // Fallback for keys that don't match the standard pattern (e.g., T1, ZG1)
-  return a.localeCompare(b);
+  return keyA.localeCompare(keyB);
 }
 
 // --- Define available palette key sets ---
@@ -142,7 +147,8 @@ export default function Home() {
     showCellNumbers: true,
     gridLineColor: gridLineColorOptions[0].value,
     includeStats: true, // 默认包含统计信息
-    exportCsv: false // 默认不导出CSV
+    exportCsv: false, // 默认不导出CSV
+    sortByKey: true // 默认按色号字母数字顺序排序
   });
 
   // 新增：高亮相关状态
@@ -2413,7 +2419,7 @@ export default function Home() {
             <p className="text-xs text-center text-gray-500 dark:text-gray-400 mb-3">点击下方列表中的颜色可将其从可用列表中排除。总计: {totalBeadCount} 颗</p>
             <ul className="space-y-1 max-h-60 overflow-y-auto pr-2 text-sm">
               {Object.keys(colorCounts)
-                .sort(sortColorKeys)
+                .sort((a, b) => sortColorKeys(a, b, selectedColorSystem))
                 .map((hexKey) => {
                   // 现在key是hex值，需要通过hex获取对应色号系统的色号
                   const displayColorKey = getColorKeyByHex(hexKey, selectedColorSystem);
@@ -2471,7 +2477,7 @@ export default function Home() {
                       <div className="max-h-40 overflow-y-auto">
                         {Array.from(excludedColorKeys).length > 0 ? (
                           <ul className="space-y-1">
-                            {Array.from(excludedColorKeys).sort(sortColorKeys).map(hexKey => {
+                            {Array.from(excludedColorKeys).sort((a, b) => sortColorKeys(a, b, selectedColorSystem)).map(hexKey => {
                               const colorData = fullBeadPalette.find(color => color.hex.toUpperCase() === hexKey.toUpperCase());
                               return (
                                 <li key={hexKey} className="flex justify-between items-center p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded">
