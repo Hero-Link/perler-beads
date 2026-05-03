@@ -486,7 +486,7 @@ export default function FocusMode() {
     Math.round((currentColorInfo.completed / currentColorInfo.total) * 100) : 0;
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-dvh flex flex-col bg-gray-50 overflow-hidden">
       {/* 顶部导航栏 */}
       <header className="h-15 bg-white shadow-sm border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <button 
