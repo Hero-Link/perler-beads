@@ -38,7 +38,8 @@ interface FocusModeState {
   recommendedCell: { row: number; col: number } | null; // 保留用于定位显示
   guidanceMode: 'nearest' | 'largest' | 'edge-first';
   connectivity: '4' | '8';
-  
+  isMirrorMode: boolean;
+
   // UI状态
   showColorPanel: boolean;
   showSettingsPanel: boolean;
@@ -75,6 +76,7 @@ export default function FocusMode() {
     recommendedCell: null,
     guidanceMode: 'nearest',
     connectivity: '8',
+    isMirrorMode: false,
     showColorPanel: false,
     showSettingsPanel: false,
     isPaused: false,
@@ -529,6 +531,7 @@ export default function FocusMode() {
           gridSectionInterval={focusState.gridSectionInterval}
           showSectionLines={focusState.showSectionLines}
           sectionLineColor={focusState.sectionLineColor}
+          isMirrorMode={focusState.isMirrorMode}
           onCellClick={handleCellClick}
           onScaleChange={(scale: number) => setFocusState(prev => ({ ...prev, canvasScale: scale }))}
           onOffsetChange={(offset: { x: number; y: number }) => setFocusState(prev => ({ ...prev, canvasOffset: offset }))}
@@ -577,6 +580,8 @@ export default function FocusMode() {
           onSectionLineColorChange={(color: string) => setFocusState(prev => ({ ...prev, sectionLineColor: color }))}
           enableCelebration={focusState.enableCelebration}
           onEnableCelebrationChange={(enable: boolean) => setFocusState(prev => ({ ...prev, enableCelebration: enable }))}
+          isMirrorMode={focusState.isMirrorMode}
+          onMirrorModeChange={(mirror: boolean) => setFocusState(prev => ({ ...prev, isMirrorMode: mirror }))}
           onClose={() => setFocusState(prev => ({ ...prev, showSettingsPanel: false }))}
         />
       )}

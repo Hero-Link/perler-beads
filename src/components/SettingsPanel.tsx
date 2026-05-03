@@ -13,6 +13,8 @@ interface SettingsPanelProps {
   onSectionLineColorChange: (color: string) => void;
   enableCelebration: boolean;
   onEnableCelebrationChange: (enable: boolean) => void;
+  isMirrorMode: boolean;
+  onMirrorModeChange: (mirror: boolean) => void;
   onClose: () => void;
 }
 
@@ -29,6 +31,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onSectionLineColorChange,
   enableCelebration,
   onEnableCelebrationChange,
+  isMirrorMode,
+  onMirrorModeChange,
   onClose
 }) => {
   // 分割线颜色选项
@@ -220,6 +224,20 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   type="checkbox"
                   checked={enableCelebration}
                   onChange={(e) => onEnableCelebrationChange(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 rounded"
+                />
+              </label>
+
+              {/* 左右镜像开关 */}
+              <label className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-gray-700">左右镜像</div>
+                  <div className="text-xs text-gray-500">水平翻转画布显示</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={isMirrorMode}
+                  onChange={(e) => onMirrorModeChange(e.target.checked)}
                   className="h-4 w-4 text-blue-600 rounded"
                 />
               </label>

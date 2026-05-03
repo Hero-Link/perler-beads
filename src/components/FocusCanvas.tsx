@@ -13,6 +13,7 @@ interface FocusCanvasProps {
   gridSectionInterval: number;
   showSectionLines: boolean;
   sectionLineColor: string;
+  isMirrorMode: boolean;
   onCellClick: (row: number, col: number) => void;
   onScaleChange: (scale: number) => void;
   onOffsetChange: (offset: { x: number; y: number }) => void;
@@ -30,6 +31,7 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
   gridSectionInterval,
   showSectionLines,
   sectionLineColor,
+  isMirrorMode,
   onCellClick,
   onScaleChange,
   onOffsetChange
@@ -135,7 +137,7 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
     if (showSectionLines) {
       ctx.strokeStyle = sectionLineColor;
       ctx.lineWidth = 2;
-      
+
       // 绘制竖直分区线
       for (let col = gridSectionInterval; col < gridDimensions.N; col += gridSectionInterval) {
         const x = col * cellSize;
@@ -144,7 +146,7 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
         ctx.lineTo(x, canvasHeight);
         ctx.stroke();
       }
-      
+
       // 绘制水平分区线
       for (let row = gridSectionInterval; row < gridDimensions.M; row += gridSectionInterval) {
         const y = row * cellSize;
@@ -154,7 +156,21 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
         ctx.stroke();
       }
     }
-  }, [mappedPixelData, gridDimensions, cellSize, currentColor, completedCells, recommendedCell, recommendedRegion, gridSectionInterval, showSectionLines, sectionLineColor]);
+
+    // 镜像模式：将渲染好的画布水平翻转
+    if (isMirrorMode) {
+      const offscreen = document.createElement('canvas');
+      offscreen.width = canvasWidth;
+      offscreen.height = canvasHeight;
+      const offCtx = offscreen.getContext('2d')!;
+      offCtx.drawImage(canvas, 0, 0);
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(offscreen, -canvasWidth, 0);
+      ctx.restore();
+    }
+  }, [mappedPixelData, gridDimensions, cellSize, currentColor, completedCells, recommendedCell, recommendedRegion, gridSectionInterval, showSectionLines, sectionLineColor, isMirrorMode]);
 
   // 处理触摸/鼠标事件
   const getEventPosition = useCallback((event: React.MouseEvent | React.TouchEvent) => {
@@ -180,14 +196,15 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
   }, [canvasScale]);
 
   const getGridPosition = useCallback((x: number, y: number) => {
-    const col = Math.floor(x / cellSize);
+    const visualCol = Math.floor(x / cellSize);
+    const col = isMirrorMode ? (gridDimensions.N - 1 - visualCol) : visualCol;
     const row = Math.floor(y / cellSize);
-    
+
     if (row >= 0 && row < gridDimensions.M && col >= 0 && col < gridDimensions.N) {
       return { row, col };
     }
     return null;
-  }, [cellSize, gridDimensions]);
+  }, [cellSize, gridDimensions, isMirrorMode]);
 
   // 计算两指间距离
   const getTouchDistance = (touches: React.TouchList) => {
