@@ -3,6 +3,8 @@ import React from 'react';
 interface SettingsPanelProps {
   guidanceMode: 'nearest' | 'largest' | 'edge-first';
   onGuidanceModeChange: (mode: 'nearest' | 'largest' | 'edge-first') => void;
+  connectivity: '4' | '8';
+  onConnectivityChange: (connectivity: '4' | '8') => void;
   gridSectionInterval: number;
   onGridSectionIntervalChange: (interval: number) => void;
   showSectionLines: boolean;
@@ -17,6 +19,8 @@ interface SettingsPanelProps {
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
   guidanceMode,
   onGuidanceModeChange,
+  connectivity,
+  onConnectivityChange,
   gridSectionInterval,
   onGridSectionIntervalChange,
   showSectionLines,
@@ -100,6 +104,42 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 <div>
                   <div className="text-sm font-medium text-gray-700">边缘优先</div>
                   <div className="text-xs text-gray-500">先完成边缘，再填充内部</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* 连通域设置 */}
+          <div>
+            <h3 className="text-base font-medium text-gray-800 mb-3">连通类型</h3>
+            <div className="space-y-3">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="connectivity"
+                  value="4"
+                  checked={connectivity === '4'}
+                  onChange={(e) => onConnectivityChange(e.target.value as '4' | '8')}
+                  className="mr-3 text-blue-600"
+                />
+                <div>
+                  <div className="text-sm font-medium text-gray-700">4连通</div>
+                  <div className="text-xs text-gray-500">仅上下左右相邻</div>
+                </div>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="connectivity"
+                  value="8"
+                  checked={connectivity === '8'}
+                  onChange={(e) => onConnectivityChange(e.target.value as '4' | '8')}
+                  className="mr-3 text-blue-600"
+                />
+                <div>
+                  <div className="text-sm font-medium text-gray-700">8连通</div>
+                  <div className="text-xs text-gray-500">包含对角线相邻</div>
                 </div>
               </label>
             </div>

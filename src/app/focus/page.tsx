@@ -37,6 +37,7 @@ interface FocusModeState {
   recommendedRegion: { row: number; col: number }[] | null;
   recommendedCell: { row: number; col: number } | null; // 保留用于定位显示
   guidanceMode: 'nearest' | 'largest' | 'edge-first';
+  connectivity: '4' | '8';
   
   // UI状态
   showColorPanel: boolean;
@@ -73,6 +74,7 @@ export default function FocusMode() {
     recommendedRegion: null,
     recommendedCell: null,
     guidanceMode: 'nearest',
+    connectivity: '8',
     showColorPanel: false,
     showSettingsPanel: false,
     isPaused: false,
@@ -179,7 +181,7 @@ export default function FocusMode() {
     if (!mappedPixelData || !focusState.currentColor) return { region: null, cell: null };
 
     // 获取当前颜色的所有连通区域
-    const allRegions = getAllConnectedRegions(mappedPixelData, focusState.currentColor);
+    const allRegions = getAllConnectedRegions(mappedPixelData, focusState.currentColor, focusState.connectivity);
     
     // 筛选出未完成的区域
     const incompleteRegions = allRegions.filter(region => 
@@ -240,7 +242,7 @@ export default function FocusMode() {
       region: selectedRegion, 
       cell: centerCell 
     };
-  }, [mappedPixelData, focusState.currentColor, focusState.completedCells, focusState.selectedCell, focusState.guidanceMode]);
+  }, [mappedPixelData, focusState.currentColor, focusState.completedCells, focusState.selectedCell, focusState.guidanceMode, focusState.connectivity]);
 
   // 更新推荐区域
   useEffect(() => {
@@ -261,7 +263,7 @@ export default function FocusMode() {
     // 如果点击的是当前颜色的格子，对整个连通区域进行标记
     if (cellColor === focusState.currentColor) {
       // 获取点击位置的连通区域
-      const region = getConnectedRegion(mappedPixelData, row, col, focusState.currentColor);
+      const region = getConnectedRegion(mappedPixelData, row, col, focusState.currentColor, focusState.connectivity);
       
       if (region.length === 0) return;
 
@@ -565,6 +567,8 @@ export default function FocusMode() {
         <SettingsPanel
           guidanceMode={focusState.guidanceMode}
           onGuidanceModeChange={(mode: 'nearest' | 'largest' | 'edge-first') => setFocusState(prev => ({ ...prev, guidanceMode: mode }))}
+          connectivity={focusState.connectivity}
+          onConnectivityChange={(connectivity: '4' | '8') => setFocusState(prev => ({ ...prev, connectivity }))}
           gridSectionInterval={focusState.gridSectionInterval}
           onGridSectionIntervalChange={(interval: number) => setFocusState(prev => ({ ...prev, gridSectionInterval: interval }))}
           showSectionLines={focusState.showSectionLines}

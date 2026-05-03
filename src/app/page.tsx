@@ -1373,7 +1373,11 @@ export default function Home() {
         { row: row - 1, col }, // 上
         { row: row + 1, col }, // 下
         { row, col: col - 1 }, // 左
-        { row, col: col + 1 }  // 右
+        { row, col: col + 1 }, // 右
+        { row: row - 1, col: col - 1 }, // 左上
+        { row: row - 1, col: col + 1 }, // 右上
+        { row: row + 1, col: col - 1 }, // 左下
+        { row: row + 1, col: col + 1 }  // 右下
       );
     }
     

@@ -24,7 +24,8 @@ export function floodFillErase(
   gridDimensions: { N: number; M: number },
   startRow: number,
   startCol: number,
-  targetKey: string
+  targetKey: string,
+  connectivity: '4' | '8' = '8'
 ): MappedPixel[][] {
   const { N, M } = gridDimensions;
   const newPixelData = pixelData.map(row => row.map(cell => ({ ...cell })));
@@ -61,6 +62,14 @@ export function floodFillErase(
       { row, col: col - 1 }, // 左
       { row, col: col + 1 }  // 右
     );
+    if (connectivity === '8') {
+      stack.push(
+        { row: row - 1, col: col - 1 }, // 左上
+        { row: row - 1, col: col + 1 }, // 右上
+        { row: row + 1, col: col - 1 }, // 左下
+        { row: row + 1, col: col + 1 }  // 右下
+      );
+    }
   }
   
   return newPixelData;
