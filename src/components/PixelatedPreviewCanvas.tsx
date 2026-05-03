@@ -40,7 +40,7 @@ const drawPixelatedCanvas = (
   }
 
   // Respect current dark mode preference
-  const isDarkMode = typeof window !== 'undefined' && document.documentElement.classList.contains('dark');
+  const isDarkMode = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
   // Define colors based on mode
   const externalBackgroundColor = isDarkMode ? '#374151' : '#F3F4F6'; // gray-700 : gray-100
@@ -114,9 +114,10 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
     const checkDarkMode = () => {
-        const isDark = document.documentElement.classList.contains('dark');
-        // Only update state if it actually changes
+        const isDark = darkModeQuery.matches;
         if (isDark !== darkModeState) {
             setDarkModeState(isDark);
         }
@@ -125,14 +126,11 @@ const PixelatedPreviewCanvas: React.FC<PixelatedPreviewCanvasProps> = ({
     // Initial check
     checkDarkMode();
 
-    // Use MutationObserver to watch for class changes on <html>
-    const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    // Listen for changes to the prefers-color-scheme media query
+    darkModeQuery.addEventListener('change', checkDarkMode);
 
-    // Cleanup observer on component unmount
-    return () => observer.disconnect();
-
-  }, [darkModeState]); // Depend on darkModeState to re-run if needed externally
+    return () => darkModeQuery.removeEventListener('change', checkDarkMode);
+  }, [darkModeState]);
 
   // Update useEffect for drawing to depend on darkModeState as well
   useEffect(() => {
