@@ -131,6 +131,16 @@ const CustomPaletteEditor: React.FC<CustomPaletteEditorProps> = ({
       onSelectionChange(color.hex.toUpperCase(), selected);
     });
   };
+
+  // 221色：选中 A B C D E F G H M 系列，取消其他
+  const select221Colors = () => {
+    const targetSeries = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'M'];
+    allColors.forEach(color => {
+      const displayKey = getDisplayColorKey(color.hex, selectedColorSystem);
+      const prefix = displayKey.match(/^[A-Z]+/)?.[0] || '';
+      onSelectionChange(color.hex.toUpperCase(), targetSeries.includes(prefix));
+    });
+  };
   
   return (
     <div className="flex flex-col h-full max-h-[calc(90vh-80px)]">
@@ -211,6 +221,12 @@ const CustomPaletteEditor: React.FC<CustomPaletteEditorProps> = ({
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           导出配置
+        </button>
+        <button
+          onClick={select221Colors}
+          className="px-3 py-1.5 text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-md hover:bg-indigo-200 dark:hover:bg-indigo-900/50"
+        >
+          221色
         </button>
       </div>
       
