@@ -349,6 +349,17 @@ export default function FocusMode() {
     setFocusState(prev => ({ ...prev, currentColor: color, showColorPanel: false }));
   }, []);
 
+  // 处理下一步 - 自动完成推荐区域
+  const handleNextStep = useCallback(() => {
+    if (!mappedPixelData || !focusState.recommendedRegion || focusState.recommendedRegion.length === 0) return;
+
+    // 获取推荐区域的第一个格子
+    const firstCell = focusState.recommendedRegion[0];
+    
+    // 直接调用 handleCellClick，复用现有的点击逻辑
+    handleCellClick(firstCell.row, firstCell.col);
+  }, [mappedPixelData, focusState.recommendedRegion, handleCellClick]);
+
   // 处理定位到推荐位置
   const handleLocateRecommended = useCallback(() => {
     if (!focusState.recommendedCell || !gridDimensions) return;
@@ -534,6 +545,7 @@ export default function FocusMode() {
         onColorSelect={() => setFocusState(prev => ({ ...prev, showColorPanel: true }))}
         onLocate={handleLocateRecommended}
         onPause={handlePauseToggle}
+        onNextStep={handleNextStep}
         isPaused={focusState.isPaused}
         elapsedTime={formatTime(focusState.totalElapsedTime)}
       />
