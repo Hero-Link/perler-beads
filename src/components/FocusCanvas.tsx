@@ -41,6 +41,31 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState<{ x: number; y: number } | null>(null);
   const [lastPinchDistance, setLastPinchDistance] = useState<number | null>(null);
+  const [blinkDim, setBlinkDim] = useState(0);
+  const blinkRafRef = useRef<number | null>(null);
+
+  // 当前颜色渐变闪烁：黑色遮罩 0 ↔ 0.3 平滑过渡
+  useEffect(() => {
+    let running = true;
+    const startTime = Date.now();
+
+    const animate = () => {
+      if (!running) return;
+      // sin 波：0 (亮) ↔ 0.3 (暗)，周期约1.5秒，所有颜色闪烁一致
+      const t = (Date.now() - startTime) * 0.004;
+      const dim = Math.round((0.15 + 0.15 * Math.sin(t)) * 100) / 100;
+      setBlinkDim(dim);
+      blinkRafRef.current = requestAnimationFrame(animate);
+    };
+
+    blinkRafRef.current = requestAnimationFrame(animate);
+    return () => {
+      running = false;
+      if (blinkRafRef.current !== null) {
+        cancelAnimationFrame(blinkRafRef.current);
+      }
+    };
+  }, []);
 
   // 计算格子大小
   const cellSize = Math.max(15, Math.min(40, 300 / Math.max(gridDimensions.N, gridDimensions.M)));
@@ -65,6 +90,14 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
     // 清空画布
     ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
+    // 根据当前颜色的亮度选择闪烁遮罩：亮色用黑遮罩，暗色用白遮罩
+    const curHex = currentColor.replace('#', '');
+    const curR = parseInt(curHex.substr(0, 2), 16);
+    const curG = parseInt(curHex.substr(2, 2), 16);
+    const curB = parseInt(curHex.substr(4, 2), 16);
+    const luminance = 0.299 * curR + 0.587 * curG + 0.114 * curB;
+    const blinkOverlay = luminance > 128 ? `rgba(0, 0, 0, ${blinkDim})` : `rgba(255, 255, 255, ${blinkDim})`;
+
     // 渲染每个格子
     for (let row = 0; row < gridDimensions.M; row++) {
       for (let col = 0; col < gridDimensions.N; col++) {
@@ -73,37 +106,28 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
         const y = row * cellSize;
         const cellKey = `${row},${col}`;
 
-        // 确定格子颜色
-        let fillColor = pixel.color;
-
-        // 如果不是当前颜色，显示为灰度
-        if (pixel.color !== currentColor) {
-          // 转换为灰度
+        // 绘制格子
+        if (pixel.color === currentColor && !completedCells.has(cellKey)) {
+          // 将要拼的颜色未完成：原色 + 遮罩闪烁
+          ctx.fillStyle = pixel.color;
+          ctx.fillRect(x, y, cellSize, cellSize);
+          ctx.fillStyle = blinkOverlay;
+          ctx.fillRect(x, y, cellSize, cellSize);
+        } else if (completedCells.has(cellKey)) {
+          // 已拼完：保持原色，无遮罩
+          ctx.fillStyle = pixel.color;
+          ctx.fillRect(x, y, cellSize, cellSize);
+        } else {
+          // 其他未拼颜色：先转灰度，再加灰色遮罩
           const hex = pixel.color.replace('#', '');
           const r = parseInt(hex.substr(0, 2), 16);
           const g = parseInt(hex.substr(2, 2), 16);
           const b = parseInt(hex.substr(4, 2), 16);
           const gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
-          fillColor = `rgb(${gray}, ${gray}, ${gray})`;
-        }
-
-        // 绘制格子背景
-        ctx.fillStyle = fillColor;
-        ctx.fillRect(x, y, cellSize, cellSize);
-
-        // 如果是已完成的格子且是当前颜色，添加勾选标记
-        if (completedCells.has(cellKey) && pixel.color === currentColor) {
-          ctx.fillStyle = 'rgba(0, 255, 0, 0.6)';
+          ctx.fillStyle = `rgb(${gray}, ${gray}, ${gray})`;
           ctx.fillRect(x, y, cellSize, cellSize);
-          
-          // 绘制勾选图标
-          ctx.strokeStyle = '#fff';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(x + cellSize * 0.2, y + cellSize * 0.5);
-          ctx.lineTo(x + cellSize * 0.4, y + cellSize * 0.7);
-          ctx.lineTo(x + cellSize * 0.8, y + cellSize * 0.3);
-          ctx.stroke();
+          ctx.fillStyle = 'rgba(128, 128, 128, 0.5)';
+          ctx.fillRect(x, y, cellSize, cellSize);
         }
 
         // 如果是推荐区域的一部分，添加高亮边框
@@ -211,7 +235,7 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
         ctx.stroke();
       }
     }
-  }, [mappedPixelData, gridDimensions, cellSize, currentColor, completedCells, recommendedCell, recommendedRegion, gridSectionInterval, showSectionLines, sectionLineColor, isMirrorMode]);
+  }, [mappedPixelData, gridDimensions, cellSize, currentColor, completedCells, recommendedCell, recommendedRegion, gridSectionInterval, showSectionLines, sectionLineColor, isMirrorMode, blinkDim]);
 
   // 处理触摸/鼠标事件
   const getEventPosition = useCallback((event: React.MouseEvent | React.TouchEvent) => {
