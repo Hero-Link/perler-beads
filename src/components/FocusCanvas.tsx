@@ -133,31 +133,7 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
       }
     }
 
-    // 绘制分区线（在所有格子绘制完成后）
-    if (showSectionLines) {
-      ctx.strokeStyle = sectionLineColor;
-      ctx.lineWidth = 2;
-
-      // 绘制竖直分区线
-      for (let col = gridSectionInterval; col < gridDimensions.N; col += gridSectionInterval) {
-        const x = col * cellSize;
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvasHeight);
-        ctx.stroke();
-      }
-
-      // 绘制水平分区线
-      for (let row = gridSectionInterval; row < gridDimensions.M; row += gridSectionInterval) {
-        const y = row * cellSize;
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvasWidth, y);
-        ctx.stroke();
-      }
-    }
-
-    // 镜像模式：将渲染好的画布水平翻转
+    // 镜像模式：将渲染好的画布水平翻转（先镜像格子，再画分区线，避免分割线被镜像）
     if (isMirrorMode) {
       const offscreen = document.createElement('canvas');
       offscreen.width = canvasWidth;
@@ -169,6 +145,71 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
       ctx.scale(-1, 1);
       ctx.drawImage(offscreen, -canvasWidth, 0);
       ctx.restore();
+    }
+
+    // 绘制分区线（在镜像之后绘制，保持分割线不被镜像）
+    if (showSectionLines) {
+      // 小分割线：每格一条，更细更透明
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.lineWidth = 0.5;
+
+      for (let col = 1; col < gridDimensions.N; col++) {
+        const x = col * cellSize;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvasHeight);
+        ctx.stroke();
+      }
+
+      for (let row = 1; row < gridDimensions.M; row++) {
+        const y = row * cellSize;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvasWidth, y);
+        ctx.stroke();
+      }
+
+      // 中分割线：每5格一条，颜色与大分割线一致，线宽减半
+      ctx.strokeStyle = sectionLineColor;
+      ctx.lineWidth = 1;
+
+      for (let col = 5; col < gridDimensions.N; col += 5) {
+        if (col % gridSectionInterval === 0) continue;
+        const x = col * cellSize;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvasHeight);
+        ctx.stroke();
+      }
+
+      for (let row = 5; row < gridDimensions.M; row += 5) {
+        if (row % gridSectionInterval === 0) continue;
+        const y = row * cellSize;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvasWidth, y);
+        ctx.stroke();
+      }
+
+      // 大分割线：每 gridSectionInterval 格一条
+      ctx.strokeStyle = sectionLineColor;
+      ctx.lineWidth = 2;
+
+      for (let col = gridSectionInterval; col < gridDimensions.N; col += gridSectionInterval) {
+        const x = col * cellSize;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvasHeight);
+        ctx.stroke();
+      }
+
+      for (let row = gridSectionInterval; row < gridDimensions.M; row += gridSectionInterval) {
+        const y = row * cellSize;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvasWidth, y);
+        ctx.stroke();
+      }
     }
   }, [mappedPixelData, gridDimensions, cellSize, currentColor, completedCells, recommendedCell, recommendedRegion, gridSectionInterval, showSectionLines, sectionLineColor, isMirrorMode]);
 
