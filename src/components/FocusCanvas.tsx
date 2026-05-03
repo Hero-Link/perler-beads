@@ -97,6 +97,7 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
     const curB = parseInt(curHex.substr(4, 2), 16);
     const luminance = 0.299 * curR + 0.587 * curG + 0.114 * curB;
     const blinkOverlay = luminance > 128 ? `rgba(0, 0, 0, ${blinkDim})` : `rgba(255, 255, 255, ${blinkDim})`;
+    const blinkOverlaySubtle = luminance > 128 ? `rgba(0, 0, 0, ${blinkDim / 3})` : `rgba(255, 255, 255, ${blinkDim / 3})`;
 
     // 渲染每个格子
     for (let row = 0; row < gridDimensions.M; row++) {
@@ -108,13 +109,27 @@ const FocusCanvas: React.FC<FocusCanvasProps> = ({
 
         // 绘制格子
         if (pixel.color === currentColor && !completedCells.has(cellKey)) {
-          // 将要拼的颜色未完成：原色 + 遮罩闪烁
+          // 将要拼的当前颜色未完成：原色 + 遮罩闪烁
           ctx.fillStyle = pixel.color;
           ctx.fillRect(x, y, cellSize, cellSize);
           ctx.fillStyle = blinkOverlay;
           ctx.fillRect(x, y, cellSize, cellSize);
+        } else if (pixel.color === currentColor && completedCells.has(cellKey)) {
+          // 当前颜色已拼完：原色 + 小幅闪烁 + 反色边框 + 斜线
+          ctx.fillStyle = pixel.color;
+          ctx.fillRect(x, y, cellSize, cellSize);
+          ctx.fillStyle = blinkOverlaySubtle;
+          ctx.fillRect(x, y, cellSize, cellSize);
+          // 边框和斜线：亮色用黑，暗色用白
+          ctx.strokeStyle = luminance > 128 ? '#000' : '#fff';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + cellSize, y + cellSize);
+          ctx.stroke();
         } else if (completedCells.has(cellKey)) {
-          // 已拼完：保持原色，无遮罩
+          // 其他颜色已拼完：保持原色，无遮罩
           ctx.fillStyle = pixel.color;
           ctx.fillRect(x, y, cellSize, cellSize);
         } else {
