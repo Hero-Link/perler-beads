@@ -101,8 +101,8 @@ export default function Home() {
   const [originalImageSrc, setOriginalImageSrc] = useState<string | null>(null);
   const [granularity, setGranularity] = useState<number>(50);
   const [granularityInput, setGranularityInput] = useState<string>("50");
-  const [similarityThreshold, setSimilarityThreshold] = useState<number>(30);
-  const [similarityThresholdInput, setSimilarityThresholdInput] = useState<string>("30");
+  const [similarityThreshold, setSimilarityThreshold] = useState<number>(0);
+  const [similarityThresholdInput, setSimilarityThresholdInput] = useState<string>("0");
   // 添加像素化模式状态
   const [pixelationMode, setPixelationMode] = useState<PixelationMode>(PixelationMode.Dominant); // 默认为卡通模式
   
@@ -605,17 +605,22 @@ export default function Home() {
     } else {
       // 处理图片文件
       const applyImageSrc = (result: string) => {
-        setOriginalImageSrc(result);
-        setMappedPixelData(null);
-        setGridDimensions(null);
-        setColorCounts(null);
-        setTotalBeadCount(0);
-        setInitialGridColorKeys(new Set()); // ++ 重置初始键 ++
-        // ++ 重置横轴格子数量为默认值 ++
-        const defaultGranularity = 100;
-        setGranularity(defaultGranularity);
-        setGranularityInput(defaultGranularity.toString());
-        setRemapTrigger(prev => prev + 1); // Trigger full remap for new image
+        const img = new Image();
+        img.onload = () => {
+          const defaultGranularity = Math.min(img.width, 100);
+          setGranularity(defaultGranularity);
+          setGranularityInput(defaultGranularity.toString());
+          setSimilarityThreshold(0);
+          setSimilarityThresholdInput("0");
+          setOriginalImageSrc(result);
+          setMappedPixelData(null);
+          setGridDimensions(null);
+          setColorCounts(null);
+          setTotalBeadCount(0);
+          setInitialGridColorKeys(new Set());
+          setRemapTrigger(prev => prev + 1);
+        };
+        img.src = result;
       };
 
       const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
