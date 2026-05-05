@@ -16,7 +16,7 @@ export interface RgbColor {
   b: number;
 }
 
-interface OklabColor {
+interface LabColor {
   l: number;
   a: number;
   b: number;
@@ -53,50 +53,84 @@ function srgbChannelToLinear(channel: number): number {
     : Math.pow((normalized + 0.055) / 1.055, 2.4);
 }
 
-function rgbToOklab(rgb: RgbColor): OklabColor {
+// RGB → XYZ (D65) → CIELAB
+function rgbToLab(rgb: RgbColor): LabColor {
   const r = srgbChannelToLinear(rgb.r);
   const g = srgbChannelToLinear(rgb.g);
   const b = srgbChannelToLinear(rgb.b);
 
-  const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
-  const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
-  const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
+  // Linear RGB → XYZ (D65)
+  const x = 0.4124564 * r + 0.3575761 * g + 0.1804375 * b;
+  const y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
+  const z = 0.0193339 * r + 0.1191920 * g + 0.9503041 * b;
 
-  const lRoot = Math.cbrt(l);
-  const mRoot = Math.cbrt(m);
-  const sRoot = Math.cbrt(s);
+  // XYZ → CIELAB (D65 reference white)
+  const xn = 0.95047, yn = 1.0, zn = 1.08883;
+  const f = (t: number): number => {
+    const delta = 6 / 29;
+    return t > delta * delta * delta ? Math.cbrt(t) : t / (3 * delta * delta) + 4 / 29;
+  };
+  const fy = f(y / yn);
 
   return {
-    l: 0.2104542553 * lRoot + 0.7936177850 * mRoot - 0.0040720468 * sRoot,
-    a: 1.9779984951 * lRoot - 2.4285922050 * mRoot + 0.4505937099 * sRoot,
-    b: 0.0259040371 * lRoot + 0.7827717662 * mRoot - 0.8086757660 * sRoot,
+    l: 116 * fy - 16,
+    a: 500 * (f(x / xn) - fy),
+    b: 200 * (fy - f(z / zn)),
   };
 }
 
-const oklabCache = new Map<string, OklabColor>();
+const labCache = new Map<string, LabColor>();
 
-function getOklabColor(rgb: RgbColor): OklabColor {
+function getLabColor(rgb: RgbColor): LabColor {
   const cacheKey = `${rgb.r},${rgb.g},${rgb.b}`;
-  const cached = oklabCache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
-  const oklab = rgbToOklab(rgb);
-  oklabCache.set(cacheKey, oklab);
-  return oklab;
+  const cached = labCache.get(cacheKey);
+  if (cached) return cached;
+  const lab = rgbToLab(rgb);
+  labCache.set(cacheKey, lab);
+  return lab;
 }
 
-// 使用 Oklab 空间计算颜色距离，并保持与现有 0-100 阈值输入兼容。
+/**
+ * CMC(l:c) 色差公式 — 纺织印染行业标准，对拼豆配色场景比 Oklab 更准确。
+ * 使用 CMC(2:1) 参数（商业可接受色差），亮度权重减半。
+ */
 export function colorDistance(rgb1: RgbColor, rgb2: RgbColor): number {
-  const oklab1 = getOklabColor(rgb1);
-  const oklab2 = getOklabColor(rgb2);
+  const lab1 = getLabColor(rgb1);
+  const lab2 = getLabColor(rgb2);
 
-  const dl = oklab1.l - oklab2.l;
-  const da = oklab1.a - oklab2.a;
-  const db = oklab1.b - oklab2.b;
+  const l = 2; // 亮度权重（2 = 亮度差异减半）
+  const c = 1; // 彩度权重
 
-  return Math.sqrt(dl * dl + da * da + db * db) * 100;
+  const dL = lab1.l - lab2.l;
+  const C1 = Math.sqrt(lab1.a * lab1.a + lab1.b * lab1.b);
+  const C2 = Math.sqrt(lab2.a * lab2.a + lab2.b * lab2.b);
+  const dC = C1 - C2;
+  const da = lab1.a - lab2.a;
+  const db = lab1.b - lab2.b;
+  const dH_sq = da * da + db * db - dC * dC;
+  const dH = Math.sqrt(Math.max(0, dH_sq));
+
+  if (C1 < 1e-9) return Math.sqrt((dL / l) ** 2 + (dC / c) ** 2);
+
+  const h1 = (Math.atan2(lab1.b, lab1.a) * 180) / Math.PI;
+  const h1Norm = h1 < 0 ? h1 + 360 : h1;
+
+  const F = Math.sqrt(C1 ** 4 / (C1 ** 4 + 1900));
+  const T = h1Norm >= 164 && h1Norm <= 345
+    ? 0.56 + Math.abs(0.2 * Math.cos(((h1Norm + 168) * Math.PI) / 180))
+    : 0.36 + Math.abs(0.4 * Math.cos(((h1Norm + 35) * Math.PI) / 180));
+
+  const SL = lab1.l < 16
+    ? 0.511
+    : (0.040975 * lab1.l) / (1 + 0.01765 * lab1.l);
+  const SC = (0.0638 * C1) / (1 + 0.0131 * C1) + 0.638;
+  const SH = SC * (F * T + 1 - F);
+
+  const termL = dL / (l * SL);
+  const termC = dC / (c * SC);
+  const termH = dH / SH;
+
+  return Math.sqrt(termL * termL + termC * termC + termH * termH) * 20;
 }
 
 // 查找最接近的颜色
@@ -137,6 +171,14 @@ export function findClosestPaletteColor(
  * @param mode 计算模式 ('dominant' 或 'average')
  * @returns 代表色的 RGB 对象，或 null（如果区域无效或全透明）
  */
+// 颜色量化：将 8-bit 通道值量化到 5-bit（32 级，步长 8），
+// 把 JPEG 压缩伪影合并到同一个桶中，提升主导色统计的准确性。
+const Q_BITS = 5;
+const Q_STEP = 256 / (1 << Q_BITS); // = 8
+function quantizeChannel(v: number): number {
+  return Math.round(v / Q_STEP) * Q_STEP;
+}
+
 function calculateCellRepresentativeColor(
     imageData: ImageData,
     startX: number,
@@ -149,9 +191,10 @@ function calculateCellRepresentativeColor(
     const imgWidth = imageData.width;
     let rSum = 0, gSum = 0, bSum = 0;
     let pixelCount = 0;
-    const colorCountsInCell: { [key: string]: number } = {};
-    let dominantColorRgb: RgbColor | null = null;
+    // 量化后的桶: key → { count, rSum, gSum, bSum }
+    const bucketMap: { [key: string]: { count: number; rSum: number; gSum: number; bSum: number } } = {};
     let maxCount = 0;
+    let bestBucketKey = '';
 
     const endX = startX + width;
     const endY = startY + height;
@@ -172,12 +215,23 @@ function calculateCellRepresentativeColor(
                 rSum += r;
                 gSum += g;
                 bSum += b;
-            } else { // Dominant mode
-                const colorKey = `${r},${g},${b}`;
-                colorCountsInCell[colorKey] = (colorCountsInCell[colorKey] || 0) + 1;
-                if (colorCountsInCell[colorKey] > maxCount) {
-                    maxCount = colorCountsInCell[colorKey];
-                    dominantColorRgb = { r, g, b };
+            } else { // Dominant mode — 使用量化桶合并相似像素
+                const qr = quantizeChannel(r);
+                const qg = quantizeChannel(g);
+                const qb = quantizeChannel(b);
+                const bucketKey = `${qr},${qg},${qb}`;
+                if (!bucketMap[bucketKey]) {
+                    bucketMap[bucketKey] = { count: 0, rSum: 0, gSum: 0, bSum: 0 };
+                }
+                const bucket = bucketMap[bucketKey];
+                bucket.count++;
+                bucket.rSum += r;
+                bucket.gSum += g;
+                bucket.bSum += b;
+
+                if (bucket.count > maxCount) {
+                    maxCount = bucket.count;
+                    bestBucketKey = bucketKey;
                 }
             }
         }
@@ -193,8 +247,14 @@ function calculateCellRepresentativeColor(
             g: Math.round(gSum / pixelCount),
             b: Math.round(bSum / pixelCount),
         };
-    } else { // Dominant mode
-        return dominantColorRgb; // 可能为 null 如果只有一个透明像素
+    } else { // Dominant mode — 返回最大桶的 RGB 平均值（比单点更准确）
+        const best = bucketMap[bestBucketKey];
+        if (!best) return null;
+        return {
+            r: Math.round(best.rSum / best.count),
+            g: Math.round(best.gSum / best.count),
+            b: Math.round(best.bSum / best.count),
+        };
     }
 }
 
