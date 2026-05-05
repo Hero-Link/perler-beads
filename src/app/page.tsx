@@ -170,6 +170,13 @@ export default function Home() {
   // 新增：组件挂载状态
   const [isMounted, setIsMounted] = useState<boolean>(false);
 
+  // 新增：识别拼豆图模式状态
+  const [isBeadPatternMode, setIsBeadPatternMode] = useState<boolean>(false);
+  const [beadPatternGridInput, setBeadPatternGridInput] = useState<{ N: string; M: string }>({ N: '', M: '' });
+  const [isRecognizing, setIsRecognizing] = useState<boolean>(false);
+  const [recognitionProgress, setRecognitionProgress] = useState<number>(0);
+  const [recognitionMessage, setRecognitionMessage] = useState<string>('');
+
   // 新增：悬浮调色盘状态
   const [isFloatingPaletteOpen, setIsFloatingPaletteOpen] = useState<boolean>(true);
 
@@ -608,6 +615,10 @@ export default function Home() {
           console.error('CSV导入失败:', error);
           alert(`CSV导入失败：${error.message}`);
         });
+    } else if (isBeadPatternMode) {
+      // 识别拼豆图模式：使用OCR识别色号
+      setExcludedColorKeys(new Set());
+      handleBeadPatternRecognition(file);
     } else {
       // 处理图片文件
       const applyImageSrc = (result: string) => {
@@ -665,6 +676,99 @@ export default function Home() {
       setIsManualColoringMode(false);
       setSelectedColor(null);
       setIsEraseMode(false);
+    }
+  };
+
+  // 处理拼豆图识别
+  const handleBeadPatternRecognition = async (file: File) => {
+    setIsRecognizing(true);
+    setRecognitionProgress(0);
+    setRecognitionMessage('正在加载识别引擎...');
+
+    try {
+      // Dynamic import to keep tesseract.js code-split
+      const { recognizeBeadPattern, autoDetectGrid } = await import('../utils/beadPatternRecognition');
+      // Read file as data URL
+      const imageSrc = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target?.result as string);
+        reader.onerror = () => reject(new Error('文件读取失败'));
+        reader.readAsDataURL(file);
+      });
+
+      // Try auto-detect grid dimensions
+      setRecognitionMessage('正在检测网格...');
+      let gridDims = await autoDetectGrid(imageSrc);
+
+      // Fall back to manual input if auto-detect fails
+      if (!gridDims) {
+        const manualN = parseInt(beadPatternGridInput.N, 10);
+        const manualM = parseInt(beadPatternGridInput.M, 10);
+        if (manualN > 0 && manualM > 0) {
+          gridDims = { N: manualN, M: manualM };
+        } else {
+          alert('无法自动检测网格尺寸，请在上方输入框手动填写列数和行数后重试。');
+          setIsRecognizing(false);
+          setRecognitionMessage('');
+          return;
+        }
+      }
+
+      // Update grid input with detected/used values
+      setBeadPatternGridInput({ N: gridDims.N.toString(), M: gridDims.M.toString() });
+
+      // Run recognition
+      setRecognitionMessage(`正在识别 ${gridDims.N}x${gridDims.M} 格子中的色号...`);
+      const mappedPixelData = await recognizeBeadPattern(
+        imageSrc,
+        gridDims,
+        selectedColorSystem,
+        (current, total) => {
+          setRecognitionProgress(Math.round((current / total) * 100));
+          setRecognitionMessage(`正在识别色号... ${current}/${total}`);
+        }
+      );
+
+      // Set data - same flow as CSV import
+      setMappedPixelData(mappedPixelData);
+      setGridDimensions(gridDims);
+      setOriginalImageSrc(imageSrc);
+
+      // Compute color stats
+      const colorCountsMap: { [key: string]: { count: number; color: string } } = {};
+      let totalCount = 0;
+      mappedPixelData.forEach(row => {
+        row.forEach(cell => {
+          if (cell && !cell.isExternal) {
+            const colorKey = cell.color.toUpperCase();
+            if (colorCountsMap[colorKey]) {
+              colorCountsMap[colorKey].count++;
+            } else {
+              colorCountsMap[colorKey] = { count: 1, color: cell.color };
+            }
+            totalCount++;
+          }
+        });
+      });
+      setColorCounts(colorCountsMap);
+      setTotalBeadCount(totalCount);
+      setInitialGridColorKeys(new Set(Object.keys(colorCountsMap)));
+
+      // Reset state
+      setIsManualColoringMode(false);
+      setSelectedColor(null);
+      setIsEraseMode(false);
+      setExcludedColorKeys(new Set());
+      setGranularity(gridDims.N);
+      setGranularityInput(gridDims.N.toString());
+
+      setRecognitionMessage('');
+      setIsRecognizing(false);
+    } catch (error) {
+      console.error('拼豆图识别失败:', error);
+      alert(`拼豆图识别失败：${error instanceof Error ? error.message : '未知错误'}`);
+      setIsRecognizing(false);
+      setRecognitionMessage('');
     }
   };
 
@@ -2194,6 +2298,86 @@ export default function Home() {
               {/* Text color */}
               <span className="text-indigo-700 dark:text-indigo-300">小贴士：使用像素图进行转换前，请确保图片的边缘吻合像素格子的边界线，这样可以获得更精确的切割效果和更好的成品。</span>
             </p>
+          </div>
+        )}
+
+        {/* 模式切换 */}
+        <div className="w-full md:max-w-md flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          <button
+            onClick={() => setIsBeadPatternMode(false)}
+            className={`flex-1 py-2 text-sm rounded-md transition-colors duration-200 ${
+              !isBeadPatternMode
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm font-medium'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            图片转像素
+          </button>
+          <button
+            onClick={() => setIsBeadPatternMode(true)}
+            className={`flex-1 py-2 text-sm rounded-md transition-colors duration-200 ${
+              isBeadPatternMode
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm font-medium'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            识别拼豆图
+          </button>
+        </div>
+
+        {/* 拼豆图模式：网格尺寸输入 */}
+        {isBeadPatternMode && (
+          <div className="w-full md:max-w-md bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
+            <p className="text-xs font-medium text-amber-800 dark:text-amber-200 mb-2">
+              请填写拼豆图纸的网格尺寸（自动检测失败时使用）：
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-gray-600 dark:text-gray-400">列数</label>
+                <input
+                  type="number"
+                  value={beadPatternGridInput.N}
+                  onChange={(e) => setBeadPatternGridInput(prev => ({ ...prev, N: e.target.value }))}
+                  placeholder="如 50"
+                  min="2"
+                  max="300"
+                  disabled={isRecognizing}
+                  className="w-20 p-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
+                />
+              </div>
+              <span className="text-gray-400">×</span>
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-gray-600 dark:text-gray-400">行数</label>
+                <input
+                  type="number"
+                  value={beadPatternGridInput.M}
+                  onChange={(e) => setBeadPatternGridInput(prev => ({ ...prev, M: e.target.value }))}
+                  placeholder="如 50"
+                  min="2"
+                  max="300"
+                  disabled={isRecognizing}
+                  className="w-20 p-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              当前色号体系：<span className="font-medium text-blue-600 dark:text-blue-400">{selectedColorSystem}</span>
+              （可在下方控制面板切换）
+            </p>
+          </div>
+        )}
+
+        {/* 识别进度 */}
+        {isRecognizing && (
+          <div className="w-full md:max-w-md bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-700 dark:text-blue-300 mb-2">{recognitionMessage}</p>
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
+              <div
+                className="bg-blue-500 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${recognitionProgress}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 text-right">{recognitionProgress}%</p>
           </div>
         )}
 
