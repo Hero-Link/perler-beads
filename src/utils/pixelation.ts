@@ -1,3 +1,4 @@
+import { differenceCiede2000 } from 'culori';
 import { transparentColorData } from './pixelEditingUtils';
 
 // 定义像素化模式
@@ -13,12 +14,6 @@ export type ColorSystem = 'MARD' | 'COCO' | '漫漫' | '盼盼' | '咪小窝';
 export interface RgbColor {
   r: number;
   g: number;
-  b: number;
-}
-
-interface LabColor {
-  l: number;
-  a: number;
   b: number;
 }
 
@@ -46,91 +41,15 @@ export function hexToRgb(hex: string): RgbColor | null {
   } : null;
 }
 
-function srgbChannelToLinear(channel: number): number {
-  const normalized = channel / 255;
-  return normalized <= 0.04045
-    ? normalized / 12.92
-    : Math.pow((normalized + 0.055) / 1.055, 2.4);
-}
-
-// RGB → XYZ (D65) → CIELAB
-function rgbToLab(rgb: RgbColor): LabColor {
-  const r = srgbChannelToLinear(rgb.r);
-  const g = srgbChannelToLinear(rgb.g);
-  const b = srgbChannelToLinear(rgb.b);
-
-  // Linear RGB → XYZ (D65)
-  const x = 0.4124564 * r + 0.3575761 * g + 0.1804375 * b;
-  const y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
-  const z = 0.0193339 * r + 0.1191920 * g + 0.9503041 * b;
-
-  // XYZ → CIELAB (D65 reference white)
-  const xn = 0.95047, yn = 1.0, zn = 1.08883;
-  const f = (t: number): number => {
-    const delta = 6 / 29;
-    return t > delta * delta * delta ? Math.cbrt(t) : t / (3 * delta * delta) + 4 / 29;
-  };
-  const fy = f(y / yn);
-
-  return {
-    l: 116 * fy - 16,
-    a: 500 * (f(x / xn) - fy),
-    b: 200 * (fy - f(z / zn)),
-  };
-}
-
-const labCache = new Map<string, LabColor>();
-
-function getLabColor(rgb: RgbColor): LabColor {
-  const cacheKey = `${rgb.r},${rgb.g},${rgb.b}`;
-  const cached = labCache.get(cacheKey);
-  if (cached) return cached;
-  const lab = rgbToLab(rgb);
-  labCache.set(cacheKey, lab);
-  return lab;
-}
+const toHex = (rgb: RgbColor): string =>
+  `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
 
 /**
- * CMC(l:c) 色差公式 — 纺织印染行业标准，对拼豆配色场景比 Oklab 更准确。
- * 使用 CMC(2:1) 参数（商业可接受色差），亮度权重减半。
+ * CIEDE2000 色差公式 — 通过 culori 库使用 ISO/CIE 11664-6:2014 标准实现。
+ * 返回值乘以 20，与 UI 上 0-100 阈值滑块保持一致。
  */
 export function colorDistance(rgb1: RgbColor, rgb2: RgbColor): number {
-  const lab1 = getLabColor(rgb1);
-  const lab2 = getLabColor(rgb2);
-
-  const l = 2; // 亮度权重（2 = 亮度差异减半）
-  const c = 1; // 彩度权重
-
-  const dL = lab1.l - lab2.l;
-  const C1 = Math.sqrt(lab1.a * lab1.a + lab1.b * lab1.b);
-  const C2 = Math.sqrt(lab2.a * lab2.a + lab2.b * lab2.b);
-  const dC = C1 - C2;
-  const da = lab1.a - lab2.a;
-  const db = lab1.b - lab2.b;
-  const dH_sq = da * da + db * db - dC * dC;
-  const dH = Math.sqrt(Math.max(0, dH_sq));
-
-  if (C1 < 1e-9) return Math.sqrt((dL / l) ** 2 + (dC / c) ** 2);
-
-  const h1 = (Math.atan2(lab1.b, lab1.a) * 180) / Math.PI;
-  const h1Norm = h1 < 0 ? h1 + 360 : h1;
-
-  const F = Math.sqrt(C1 ** 4 / (C1 ** 4 + 1900));
-  const T = h1Norm >= 164 && h1Norm <= 345
-    ? 0.56 + Math.abs(0.2 * Math.cos(((h1Norm + 168) * Math.PI) / 180))
-    : 0.36 + Math.abs(0.4 * Math.cos(((h1Norm + 35) * Math.PI) / 180));
-
-  const SL = lab1.l < 16
-    ? 0.511
-    : (0.040975 * lab1.l) / (1 + 0.01765 * lab1.l);
-  const SC = (0.0638 * C1) / (1 + 0.0131 * C1) + 0.638;
-  const SH = SC * (F * T + 1 - F);
-
-  const termL = dL / (l * SL);
-  const termC = dC / (c * SC);
-  const termH = dH / SH;
-
-  return Math.sqrt(termL * termL + termC * termC + termH * termH) * 20;
+  return differenceCiede2000()(toHex(rgb1), toHex(rgb2)) * 20;
 }
 
 // 查找最接近的颜色
